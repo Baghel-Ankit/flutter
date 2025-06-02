@@ -87,6 +87,26 @@ Widget wrapper(Widget widget) {
 }
 ''';
 
+const String kErrorContainingLibrary = '''
+invalid-symbol;
+
+import 'package:flutter/widgets.dart';
+import 'package:flutter/widget_previews.dart';
+
+@Preview()
+Widget preview() => Text('Error in library');
+''';
+
+const String kTransitiveErrorLibrary = '''
+import 'error.dart';
+
+import 'package:flutter/widgets.dart';
+import 'package:flutter/widget_previews.dart';
+
+@Preview()
+Widget preview() => Text('Error in dependency');
+''';
+
 // Note: this test isn't under the general.shard since tests under that directory
 // have a 2000ms time out and these tests write to the real file system and watch
 // directories for changes. This can be slow on heavily loaded machines and cause
@@ -114,7 +134,9 @@ void main() {
             ..childFile('lib/src/bar.dart').writeAsStringSync(kBarDart)
             ..childFile('lib/src/brightness.dart').writeAsStringSync(kBrightnessDart)
             ..childFile('lib/src/wrapper.dart').writeAsStringSync(kWrapperDart)
-            ..childFile('lib/src/theme.dart').writeAsStringSync(kThemeDart);
+            ..childFile('lib/src/theme.dart').writeAsStringSync(kThemeDart)
+            ..childFile('lib/src/error.dart').writeAsStringSync(kErrorContainingLibrary)
+            ..childFile('lib/src/transitive_error.dart').writeAsStringSync(kTransitiveErrorLibrary);
       project = FlutterProject.fromDirectoryTest(projectDir);
       previewDetector = PreviewDetector(
         projectRoot: projectDir,
@@ -149,7 +171,7 @@ void main() {
           PreviewCodeGenerator.generatedPreviewFilePath,
         );
         expect(generatedPreviewFile, isNot(exists));
-        final PreviewMapping details = await previewDetector.findPreviewFunctions(
+        final PreviewDependencyGraph details = await previewDetector.findPreviewFunctions(
           project.directory,
         );
 
@@ -174,6 +196,7 @@ import 'dart:ui' as _i5;
 import 'package:foo_project/src/theme.dart' as _i6;
 import 'package:foo_project/src/wrapper.dart' as _i7;
 import 'package:flutter/widgets.dart' as _i8;
+import 'package:flutter/material.dart' as _i9;
 
 List<_i1.WidgetPreview> previews() => [
       _i1.WidgetPreview(builder: () => _i2.preview()),
@@ -193,13 +216,19 @@ List<_i1.WidgetPreview> previews() => [
         brightness: _i5.Brightness.dark,
         builder: () => _i7.wrapper(_i8.Builder(builder: _i3.barPreview3())),
       ),
+      _i1.WidgetPreview(
+          builder: () =>
+              _i9.Text('package:foo_project/src/error.dart has errors!')),
+      _i1.WidgetPreview(
+          builder: () => _i9.Text(
+              'Dependency of package:foo_project/src/transitive_error.dart has errors!')),
     ];
 ''';
         expect(generatedPreviewFile.readAsStringSync(), expectedGeneratedPreviewFileContents);
 
         // Regenerate the generated file with no previews.
         codeGenerator.populatePreviewsInGeneratedPreviewScaffold(
-          const <PreviewPath, List<PreviewDetails>>{},
+          const <PreviewPath, PreviewDependencyNode>{},
         );
         expect(generatedPreviewFile, exists);
 
